@@ -1,4 +1,3 @@
-
 name: ZenBubble Android Build
 
 on:
@@ -9,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
@@ -26,7 +25,7 @@ jobs:
 
       - name: Extract source code
         run: |
-          unzip droidbubble-1.3.0.zip -d source
+          unzip -o droidbubble-1.3.0.zip -d source
 
       - name: Build APK
         working-directory: source/droidbubble-1.3.0
@@ -39,3 +38,4 @@ jobs:
         with:
           name: ZenBubble-APK
           path: source/droidbubble-1.3.0/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
