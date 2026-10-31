@@ -27,7 +27,7 @@ jobs:
 
       - name: Extract source code
         run: |
-          unzip -o droidbubble-1.3.0.zip -d source
+          unzip -o droidbubble-1.3.0-fixed.zip -d source
 
       - name: Build APK
         working-directory: source/droidbubble-1.3.0
