@@ -1,5 +1,5 @@
 
-name: ZenPlayer Android Build
+name: ZenBubble Real Audio Capture Build
 
 on:
   workflow_dispatch:
@@ -27,27 +27,24 @@ jobs:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK
+      - name: Install Android SDK components
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Extract ZenPlayer source
+      - name: Extract source code
         run: |
           unzip -o droidbubble-1.3.0-fixed.zip -d source
 
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Build ZenPlayer APK
-        working-directory: source
+      - name: Build APK
+        working-directory: source/droidbubble-1.3.0
         run: |
-          gradle assembleDebug --stacktrace
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Upload ZenPlayer APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenPlayer-APK
-          path: source/app/build/outputs/apk/debug/*.apk
+          name: ZenBubble-Real-Audio-Capture-APK
+          path: source/droidbubble-1.3.0/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
