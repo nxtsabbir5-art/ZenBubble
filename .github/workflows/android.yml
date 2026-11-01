@@ -1,5 +1,5 @@
 
-name: ZenBubble Android Build
+name: ZenPlayer Android Build
 
 on:
   workflow_dispatch:
@@ -27,23 +27,27 @@ jobs:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK components
+      - name: Install Android SDK
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract source code
+      - name: Extract ZenPlayer source
         run: |
           unzip -o droidbubble-1.3.0-fixed.zip -d source
 
-      - name: Build APK
-        working-directory: source/droidbubble-1.3.0
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Upload APK
+      - name: Build ZenPlayer APK
+        working-directory: source
+        run: |
+          gradle assembleDebug --stacktrace
+
+      - name: Upload ZenPlayer APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenBubble-APK
-          path: source/droidbubble-1.3.0/app/build/outputs/apk/debug/*.apk
+          name: ZenPlayer-APK
+          path: source/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
