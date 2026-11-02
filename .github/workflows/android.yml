@@ -1,50 +1,69 @@
 
-name: ZenBubble Real Audio Capture Build
+name: ZenPlayer APK Build
 
 on:
   workflow_dispatch:
   push:
+    paths:
+      - 'ZenPlayer_Music_Video_Custom_UI_Source.zip'
+      - '.github/workflows/build.yml'
     branches:
       - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK components
+      - name: Install Android SDK
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract source code
+      - name: Extract ZIP
         run: |
-          unzip -o droidbubble-1.3.0-fixed.zip -d source
+          mkdir source
+          unzip -o ZenPlayer_Music_Video_Custom_UI_Source.zip -d source
+          find source -name gradlew -type f -exec chmod +x {} \;
+
+      - name: Locate Gradle Project
+        run: |
+          PROJECT_DIR=$(find source -name settings.gradle -o -name settings.gradle.kts | head -n 1 | xargs dirname)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build APK
-        working-directory: source/droidbubble-1.3.0
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          cd "$PROJECT_DIR"
+          if [ -f gradlew ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenBubble-Real-Audio-Capture-APK
-          path: source/droidbubble-1.3.0/app/build/outputs/apk/debug/*.apk
+          name: ZenPlayer-APK
+          path: |
+            source/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
