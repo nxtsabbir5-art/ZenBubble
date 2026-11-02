@@ -1,12 +1,13 @@
 
-name: ZenPlayer APK Build
+name: ZenBubble APK Build
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
-      - 'ZenPlayer_Music_Video_Custom_UI_Source.zip'
+      - 'ZenBubble_Notification_Island_Neon_Glass_Theme.zip'
       - '.github/workflows/build.yml'
 
 permissions:
@@ -17,10 +18,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -32,31 +33,36 @@ jobs:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install SDK
+      - name: Install Android SDK
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Extract New ZIP Only
+      - name: Extract ZenBubble ZIP
         run: |
           mkdir source
-          unzip -o ZenPlayer_Music_Video_Custom_UI_Source.zip -d source
+          unzip -o ZenBubble_Notification_Island_Neon_Glass_Theme.zip -d source
 
-      - name: Find Project
+      - name: Locate Gradle Project
         run: |
           PROJECT_DIR=$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Gradle project not found"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build APK
+      - name: Build Debug APK
         run: |
           cd "$PROJECT_DIR"
-          gradle assembleDebug --no-daemon --stacktrace
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Upload ZenBubble APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenPlayer-APK
+          name: ZenBubble-Neon-Glass-APK
           path: source/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
