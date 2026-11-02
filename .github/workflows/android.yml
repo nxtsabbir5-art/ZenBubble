@@ -4,11 +4,10 @@ name: ZenPlayer APK Build
 on:
   workflow_dispatch:
   push:
+    branches: [ main ]
     paths:
       - 'ZenPlayer_Music_Video_Custom_UI_Source.zip'
       - '.github/workflows/build.yml'
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -18,7 +17,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java
@@ -33,19 +32,18 @@ jobs:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK
+      - name: Install SDK
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract ZIP
+      - name: Extract New ZIP Only
         run: |
           mkdir source
           unzip -o ZenPlayer_Music_Video_Custom_UI_Source.zip -d source
-          find source -name gradlew -type f -exec chmod +x {} \;
 
-      - name: Locate Gradle Project
+      - name: Find Project
         run: |
-          PROJECT_DIR=$(find source -name settings.gradle -o -name settings.gradle.kts | head -n 1 | xargs dirname)
+          PROJECT_DIR=$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
       - name: Setup Gradle
@@ -54,16 +52,11 @@ jobs:
       - name: Build APK
         run: |
           cd "$PROJECT_DIR"
-          if [ -f gradlew ]; then
-            ./gradlew assembleDebug --no-daemon
-          else
-            gradle assembleDebug --no-daemon
-          fi
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ZenPlayer-APK
-          path: |
-            source/**/build/outputs/apk/debug/*.apk
+          path: source/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
