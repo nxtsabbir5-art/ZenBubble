@@ -1,4 +1,5 @@
-name: Build ZenIsland APK
+
+name: Build ZenIsland v0.3.0
 
 on:
   push:
@@ -10,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ZenIsland
+    name: Build Latest ZenIsland
     runs-on: ubuntu-latest
 
     steps:
@@ -29,32 +30,33 @@ jobs:
 
       - name: Install Android SDK
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      - name: Extract ZenIsland Source
+      - name: Extract ZenIsland v0.3.0
         run: |
-          ZIP="./ZenIsland-Starter-0.1.0.zip"
+          ZIP="ZenIsland-v0.3.0.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ZenIsland ZIP not found!"
+            echo "ERROR: New ZenIsland ZIP not found!"
             exit 1
           fi
 
-          mkdir -p "$RUNNER_TEMP/ZenIsland"
-          unzip -o "$ZIP" -d "$RUNNER_TEMP/ZenIsland"
+          mkdir -p "$RUNNER_TEMP/zenisland-v030"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/zenisland-v030"
 
-      - name: Verify Gradle Project
-        run: |
-          PROJECT="$RUNNER_TEMP/ZenIsland"
+          PROJECT="$RUNNER_TEMP/zenisland-v030"
 
-          if [ ! -f "$PROJECT/settings.gradle.kts" ]; then
-            echo "settings.gradle.kts missing!"
-            find "$PROJECT" -maxdepth 3 -type f
-            exit 1
-          fi
+          test -f "$PROJECT/settings.gradle.kts"
+          test -f "$PROJECT/build.gradle.kts"
+          test -f "$PROJECT/app/build.gradle.kts"
+          test -f "$PROJECT/app/src/main/java/com/zenisland/app/FaceView.kt"
+          test -f "$PROJECT/app/src/main/java/com/zenisland/app/IslandService.kt"
+
+          grep -q 'versionName = "0.3.0"' \
+            "$PROJECT/app/build.gradle.kts"
 
           echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
 
@@ -71,7 +73,7 @@ jobs:
       - name: Upload ZenIsland APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenIsland-APK
+          name: ZenIsland-v0.3.0-APK
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
