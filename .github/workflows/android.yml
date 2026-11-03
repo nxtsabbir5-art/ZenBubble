@@ -15,69 +15,126 @@ permissions:
 
 jobs:
   build:
+    name: Build Zen Bubble
     runs-on: ubuntu-22.04
 
     steps:
+      # 1. Checkout repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Setup Java 17
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
           accept-android-sdk-licenses: true
 
-      - name: Install Android SDK
+      # 4. Install Android SDK components
+      - name: Install Android SDK Components
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Extract New Zen Bubble ZIP
+      # 5. Check ZIP and extract only the new source
+      - name: Extract Zen Bubble 4.0
+        shell: bash
         run: |
           set -euo pipefail
+
           ZIP_FILE="Zenbubble 4.0.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: New ZIP file not found!"
+            echo "::error::Zenbubble 4.0.zip not found in repository root!"
             exit 1
           fi
 
           rm -rf source
           mkdir -p source
+
           unzip -q "$ZIP_FILE" -d source
 
+          echo "New source extracted successfully."
+
+      # 6. Locate Gradle project
       - name: Locate Gradle Project
         id: project
+        shell: bash
         run: |
           set -euo pipefail
 
-          PROJECT_FILE="$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          SETTINGS_FILE="$(find source -type f \
+            \( -name settings.gradle -o -name settings.gradle.kts \) \
+            -print -quit)"
 
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "Gradle project not found!"
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "::error::Gradle project not found!"
             exit 1
           fi
 
-          PROJECT_DIR="$(dirname "$PROJECT_FILE")"
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
 
           if [ ! -f "$PROJECT_DIR/gradlew" ]; then
-            echo "gradlew not found!"
+            echo "::error::gradlew not found!"
             exit 1
           fi
 
           echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
+          echo "Project found: $PROJECT_DIR"
+
+      # 7. Remove invalid Windows Java paths
+      - name: Fix Gradle Java Path
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find . -name gradle.properties -type f -exec \
+            sed -i '/^[[:space:]]*org\.gradle\.java\.home[[:space:]]*=/d' {} \;
+
+          mkdir -p "$HOME/.gradle"
+
+          if [ -f "$HOME/.gradle/gradle.properties" ]; then
+            sed -i '/^[[:space:]]*org\.gradle\.java\.home[[:space:]]*=/d' \
+              "$HOME/.gradle/gradle.properties"
+          fi
+
+          echo "Windows Java path removed."
+
+      # 8. Verify Java
+      - name: Verify Java Environment
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version
+          javac -version
+
+      # 9. Setup Gradle cache
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 10. Build fresh APK
       - name: Build Fresh APK
         working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
         run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon clean assembleDebug --stacktrace
+          set -euo pipefail
 
+          chmod +x ./gradlew
+
+          ./gradlew \
+            --no-daemon \
+            clean \
+            assembleDebug \
+            --stacktrace
+
+      # 11. Upload APK
       - name: Upload Zen Bubble APK
         uses: actions/upload-artifact@v4
         with:
