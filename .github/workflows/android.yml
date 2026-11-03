@@ -24,15 +24,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept SDK Licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Accept Android SDK Licenses
+        run: |
+          SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDK" --sdk_root="$ANDROID_HOME" --licenses
 
       - name: Install Android SDK
         run: |
-          sdkmanager --install \
+          SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$SDK" --sdk_root="$ANDROID_HOME" --install \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
@@ -41,23 +41,18 @@ jobs:
         run: |
           ZIP="ZenIsland-v0.4.0.zip"
 
-          if [ ! -f "$ZIP" ]; then
-            echo "ERROR: New ZIP not found!"
+          test -f "$ZIP" || {
+            echo "ERROR: ZIP not found"
             exit 1
-          fi
+          }
 
           mkdir -p "$RUNNER_TEMP/zenisland"
           unzip -q "$ZIP" -d "$RUNNER_TEMP/zenisland"
 
           PROJECT=$(find "$RUNNER_TEMP/zenisland" \
-            -name settings.gradle.kts -printf '%h\n' \
-            | head -n 1)
+            -name settings.gradle.kts -printf '%h\n' | head -n 1)
 
-          if [ -z "$PROJECT" ]; then
-            echo "ERROR: Gradle project not found in ZIP!"
-            exit 1
-          fi
-
+          test -n "$PROJECT"
           test -f "$PROJECT/app/build.gradle.kts"
 
           echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
@@ -72,7 +67,7 @@ jobs:
           cd "$PROJECT_DIR"
           gradle --no-daemon :app:assembleDebug --stacktrace
 
-      - name: Upload ZenIsland APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ZenIsland-v0.4.0-APK
