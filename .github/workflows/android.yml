@@ -1,5 +1,5 @@
 
-name: ZenBubble APK Build
+name: Zen Bubble APK Build
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ on:
     branches:
       - main
     paths:
-      - 'ZenBubble_Notification_Island_Neon_Glass_Theme.zip'
-      - '.github/workflows/build.yml'
+      - 'Zenbubble 4.0.zip'
+      - '.github/workflows/android.yml'
 
 permissions:
   contents: read
@@ -37,32 +37,50 @@ jobs:
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Extract ZenBubble ZIP
+      - name: Extract New Zen Bubble ZIP
         run: |
-          mkdir source
-          unzip -o ZenBubble_Notification_Island_Neon_Glass_Theme.zip -d source
+          set -euo pipefail
+          ZIP_FILE="Zenbubble 4.0.zip"
 
-      - name: Locate Gradle Project
-        run: |
-          PROJECT_DIR=$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "Gradle project not found"
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: New ZIP file not found!"
             exit 1
           fi
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          rm -rf source
+          mkdir -p source
+          unzip -q "$ZIP_FILE" -d source
 
-      - name: Build Debug APK
+      - name: Locate Gradle Project
+        id: project
         run: |
-          cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          set -euo pipefail
 
-      - name: Upload ZenBubble APK
+          PROJECT_FILE="$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "Gradle project not found!"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PROJECT_FILE")"
+
+          if [ ! -f "$PROJECT_DIR/gradlew" ]; then
+            echo "gradlew not found!"
+            exit 1
+          fi
+
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build Fresh APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug --stacktrace
+
+      - name: Upload Zen Bubble APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenBubble-Neon-Glass-APK
-          path: source/**/build/outputs/apk/debug/*.apk
+          name: Zen-Bubble-APK
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
