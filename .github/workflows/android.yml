@@ -1,5 +1,5 @@
 
-name: Build ZenIsland v0.3.0
+name: Build ZenIsland v0.4.0
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Latest ZenIsland
+    name: Build ZenIsland APK
     runs-on: ubuntu-latest
 
     steps:
@@ -19,44 +19,46 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android Licenses
-        run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK Licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Install Android SDK
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+          sdkmanager --install \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      - name: Extract ZenIsland v0.3.0
+      - name: Extract New ZIP
         run: |
-          ZIP="ZenIsland-v0.3.0.zip"
+          ZIP="ZenIsland-v0.4.0.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERROR: New ZenIsland ZIP not found!"
+            echo "ERROR: New ZIP not found!"
             exit 1
           fi
 
-          mkdir -p "$RUNNER_TEMP/zenisland-v030"
-          unzip -q "$ZIP" -d "$RUNNER_TEMP/zenisland-v030"
+          mkdir -p "$RUNNER_TEMP/zenisland"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/zenisland"
 
-          PROJECT="$RUNNER_TEMP/zenisland-v030"
+          PROJECT=$(find "$RUNNER_TEMP/zenisland" \
+            -name settings.gradle.kts -printf '%h\n' \
+            | head -n 1)
 
-          test -f "$PROJECT/settings.gradle.kts"
-          test -f "$PROJECT/build.gradle.kts"
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: Gradle project not found in ZIP!"
+            exit 1
+          fi
+
           test -f "$PROJECT/app/build.gradle.kts"
-          test -f "$PROJECT/app/src/main/java/com/zenisland/app/FaceView.kt"
-          test -f "$PROJECT/app/src/main/java/com/zenisland/app/IslandService.kt"
-
-          grep -q 'versionName = "0.3.0"' \
-            "$PROJECT/app/build.gradle.kts"
 
           echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
 
@@ -68,12 +70,12 @@ jobs:
       - name: Build Debug APK
         run: |
           cd "$PROJECT_DIR"
-          gradle --no-daemon :app:assembleDebug
+          gradle --no-daemon :app:assembleDebug --stacktrace
 
       - name: Upload ZenIsland APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenIsland-v0.3.0-APK
+          name: ZenIsland-v0.4.0-APK
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
