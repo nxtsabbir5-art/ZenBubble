@@ -1,76 +1,69 @@
 
-name: Build ZenIsland v0.4.0
+name: DroidBubble Offline APK Build
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build ZenIsland APK
+    name: Extract ZIP and Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK Licenses
-        run: |
-          SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDK" --sdk_root="$ANDROID_HOME" --licenses
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Install Android SDK
         run: |
-          SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          "$SDK" --sdk_root="$ANDROID_HOME" --install \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          sdkmanager "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
 
-      - name: Extract New ZIP
+      - name: Accept SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Extract DroidBubble Source ZIP
         run: |
-          ZIP="ZenIsland-v0.4.0.zip"
+          mkdir -p source
+          unzip -q DroidBubble-Dynamic-Eye-Offline-GitHub.zip -d source
 
-          test -f "$ZIP" || {
-            echo "ERROR: ZIP not found"
-            exit 1
-          }
+      - name: Verify Project Files
+        run: |
+          test -f source/gradlew
+          test -f source/settings.gradle.kts
+          test -f source/app/build.gradle.kts
+          echo "Source ZIP extracted successfully"
 
-          mkdir -p "$RUNNER_TEMP/zenisland"
-          unzip -q "$ZIP" -d "$RUNNER_TEMP/zenisland"
-
-          PROJECT=$(find "$RUNNER_TEMP/zenisland" \
-            -name settings.gradle.kts -printf '%h\n' | head -n 1)
-
-          test -n "$PROJECT"
-          test -f "$PROJECT/app/build.gradle.kts"
-
-          echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
+      - name: Grant Gradle Permission
+        run: chmod +x source/gradlew
 
       - name: Build Debug APK
+        working-directory: source
         run: |
-          cd "$PROJECT_DIR"
-          gradle --no-daemon :app:assembleDebug --stacktrace
+          ./gradlew --no-daemon \
+            --stacktrace \
+            clean assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZenIsland-v0.4.0-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          name: DroidBubble-Offline-APK
+          path: source/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
