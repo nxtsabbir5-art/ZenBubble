@@ -17,15 +17,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -34,33 +37,139 @@ jobs:
           log-accepted-android-sdk-licenses: false
           packages: 'platform-tools'
 
+      # 4. Install SDK packages
       - name: Install Android SDK Packages
         run: |
           sdkmanager "platforms;android-36" \
             "build-tools;36.0.0"
-          
-      - name: Extract Source ZIP
+
+      # 5. Extract ZIP
+      - name: Extract DroidBubble Source
         run: |
+          set -e
           mkdir -p source
           unzip -q DroidBubble-Dynamic-Eye-Offline-GitHub.zip -d source
 
+      # 6. Find actual Gradle project
       - name: Locate Gradle Project
         run: |
-          find source -name settings.gradle.kts
-          test -f source/gradlew
+          set -e
 
-      - name: Prepare Gradle
-        run: chmod +x source/gradlew
+          GRADLE_FILE=$(find source -type f -name gradlew | head -n 1)
 
-      - name: Build Debug APK
-        working-directory: source
+          if [ -z "$GRADLE_FILE" ]; then
+            echo "ERROR: gradlew not found inside ZIP"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLE_FILE")
+          PROJECT_DIR=$(realpath "$PROJECT_DIR")
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "Project found: $PROJECT_DIR"
+
+          test -f "$PROJECT_DIR/settings.gradle.kts" || \
+          test -f "$PROJECT_DIR/settings.gradle"
+
+          test -d "$PROJECT_DIR/app"
+
+      # 7. Fix missing Locale import
+      - name: Fix Missing Locale Import
         run: |
-          ./gradlew --no-daemon clean assembleDebug
+          set -e
 
+          FILE=$(find "$PROJECT_DIR" -name PersistentWidgetTelemetryManager.kt -print -quit)
+
+          if [ -z "$FILE" ]; then
+            echo "ERROR: PersistentWidgetTelemetryManager.kt not found"
+            exit 1
+          fi
+
+          if ! grep -q '^import java.util.Locale$' "$FILE"; then
+            sed -i '/^package .*$/a import java.util.Locale' "$FILE"
+          fi
+
+          echo "Locale import checked successfully"
+
+      # 8. Remove network permissions
+      - name: Configure Offline Manifest
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path(
+              __import__("os").environ["PROJECT_DIR"]
+          ) / "app/src/main/AndroidManifest.xml"
+
+          if not manifest.exists():
+              raise SystemExit("AndroidManifest.xml not found")
+
+          content = manifest.read_text()
+
+          permissions = [
+              "android.permission.INTERNET",
+              "android.permission.ACCESS_NETWORK_STATE",
+              "android.permission.ACCESS_WIFI_STATE",
+              "android.permission.REQUEST_INSTALL_PACKAGES",
+          ]
+
+          if "xmlns:tools=" not in content:
+              content = content.replace(
+                  "<manifest",
+                  '<manifest xmlns:tools="http://schemas.android.com/tools"',
+                  1
+              )
+
+          for permission in permissions:
+              pattern = (
+                  r'<uses-permission(?:-sdk-23)?\b'
+                  r'(?=[^>]*android:name=["\']'
+                  + re.escape(permission)
+                  + r'["\'])[^>]*/>'
+              )
+
+              content = re.sub(pattern, "", content)
+
+              marker = (
+                  f'<uses-permission android:name="{permission}" '
+                  'tools:node="remove" />'
+              )
+
+              if marker not in content:
+                  content = content.replace(
+                      "</manifest>",
+                      "    " + marker + "\n</manifest>"
+                  )
+
+          manifest.write_text(content)
+
+          print("Offline manifest configuration completed")
+          PY
+
+      # 9. Gradle permission
+      - name: Prepare Gradle
+        run: |
+          chmod +x "$PROJECT_DIR/gradlew"
+
+      # 10. Build APK
+      - name: Build Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          ./gradlew \
+            --no-daemon \
+            --stacktrace \
+            clean assembleDebug
+
+      # 11. Upload APK
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DroidBubble-Offline-APK
-          path: source/app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
