@@ -26,41 +26,38 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '15859902'
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
+          packages: 'platform-tools'
 
-      - name: Install Android SDK
+      - name: Install Android SDK Packages
         run: |
-          sdkmanager "platform-tools" \
-            "platforms;android-36" \
+          sdkmanager "platforms;android-36" \
             "build-tools;36.0.0"
-
-      - name: Accept SDK Licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Extract DroidBubble Source ZIP
+          
+      - name: Extract Source ZIP
         run: |
           mkdir -p source
           unzip -q DroidBubble-Dynamic-Eye-Offline-GitHub.zip -d source
 
-      - name: Verify Project Files
+      - name: Locate Gradle Project
         run: |
+          find source -name settings.gradle.kts
           test -f source/gradlew
-          test -f source/settings.gradle.kts
-          test -f source/app/build.gradle.kts
-          echo "Source ZIP extracted successfully"
 
-      - name: Grant Gradle Permission
+      - name: Prepare Gradle
         run: chmod +x source/gradlew
 
       - name: Build Debug APK
         working-directory: source
         run: |
-          ./gradlew --no-daemon \
-            --stacktrace \
-            clean assembleDebug
+          ./gradlew --no-daemon clean assembleDebug
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DroidBubble-Offline-APK
