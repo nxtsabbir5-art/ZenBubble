@@ -4,9 +4,9 @@ name: Build ZenWidgets APK
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-      - master
+    paths:
+      - 'ZenWidgets-GitHub-Project.zip'
+      - '.github/workflows/zenwidgets.yml'
 
 permissions:
   contents: read
@@ -25,47 +25,73 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Extract Project ZIP
+      - name: Install Android SDK Packages
         run: |
-          mkdir extracted
-          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Project ZIP not found!"
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" \
+            -name sdkmanager -type f | head -n 1)
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "SDK Manager not found!"
             exit 1
           fi
 
+          yes | "$SDKMANAGER" --licenses || true
+
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Extract ZenWidgets ZIP
+        run: |
+          ZIP_FILE="ZenWidgets-GitHub-Project.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ZenWidgets ZIP not found!"
+            exit 1
+          fi
+
+          mkdir extracted
           unzip -q "$ZIP_FILE" -d extracted
 
       - name: Locate Android Project
         run: |
-          PROJECT_FILE=$(find extracted -name settings.gradle.kts -print -quit)
+          PROJECT_FILE=$(find extracted -type f \
+            \( -name settings.gradle \
+            -o -name settings.gradle.kts \) \
+            -print -quit)
 
           if [ -z "$PROJECT_FILE" ]; then
-            echo "ERROR: Android project not found!"
+            echo "Android Gradle project not found!"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Build Debug APK
         run: |
           cd "$PROJECT_DIR"
-          gradle --no-daemon assembleDebug
 
-      - name: Upload APK Artifact
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew --no-daemon assembleDebug
+          else
+            gradle --no-daemon assembleDebug
+          fi
+
+      - name: Upload ZenWidgets APK
         uses: actions/upload-artifact@v4
         with:
           name: ZenWidgets-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
